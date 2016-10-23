@@ -12,6 +12,9 @@ module.exports = function(homebridge) {
 function DoorAccessory(log, config) {
 	this.log = log;
 	this.name = config["name"];
+	this.accessToken = config["accessToken"];
+	this.deviceID = config["deviceID"];
+	this.url = config["url"];
 	this.controlurl = config["controlURL"];
 	this.statusurl = config["statusURL"];
 
@@ -32,14 +35,16 @@ function DoorAccessory(log, config) {
 }
 
 DoorAccessory.prototype.getState = function(callback) {
+	var stateUrl = this.url + this.deviceID + "/" + this.statusurl + "?access_token=" + this.accessToken;
+	
 	this.log("Getting current state...");
 
 	request.get({
-		url: this.statusurl
+		url: stateUrl
 	}, function(err, response, body) {
 		if (!err && response.statusCode == 200) {
 			var json = JSON.parse(body);
-			var state = json.state; // "open" or "closed"
+			var state = json.result; // "open" or "closed"
 			this.log("Door state is %s", state);
 			var closed = state == "closed"
 			callback(null, closed); // success
@@ -51,11 +56,17 @@ DoorAccessory.prototype.getState = function(callback) {
 }
 
 DoorAccessory.prototype.setState = function(state, callback) {
-	var doorState = (state == Characteristic.TargetDoorState.CLOSED) ? "closed" : "open";
+	var doorState = (state == Characteristic.TargetDoorState.CLOSED) ? "closenow" : "open";
+	var controlUrl = this.url + this.deviceID + "/" + this.controlurl;
+
 	this.log("Set state to %s", doorState);
 	
-	request.get({
-		url: this.controlurl
+	request.post({
+		url: controlUrl,
+		form: {
+			arg: doorState,
+			access_token: this.accessToken
+		}
 	}, function(err, response, body) {
 		if (!err && response.statusCode == 200) {
 			this.log("State change complete.");
